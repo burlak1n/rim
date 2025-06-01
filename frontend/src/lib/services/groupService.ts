@@ -2,7 +2,7 @@
 // import AuthStore from "$lib/store/authStore"; // Временно не используется для getAuthHeaders
 import type { Group, GroupPayload } from "$lib/types";
 
-const API_BASE_URL = '/api/v1/groups'; // Базовый URL для групп
+const API_BASE_URL = 'http://localhost:3000/api/v1/groups'; // Базовый URL для групп
 
 // Вспомогательная функция для обработки ответов fetch (аналогична той, что в authService)
 async function handleResponse<T>(response: Response): Promise<T> {

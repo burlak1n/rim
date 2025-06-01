@@ -12,7 +12,7 @@
 
   // Состояние для модального окна/формы создания/редактирования
   let showModal = false;
-  let currentGroup: Partial<GroupPayload> = {}; 
+  let currentGroup: Partial<GroupPayload> = { name: '' }; 
   let editingGroupId: string | null = null; 
 
   onMount(async () => {
@@ -34,28 +34,23 @@
   }
 
   $: filteredGroups = groups.filter(group => 
-    (group.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (group.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  )/*.sort((a, b) => { // Если понадобится сортировка
-    if (a[sortBy] < b[sortBy]) return -1;
-    if (a[sortBy] > b[sortBy]) return 1;
-    return 0;
-  })*/;
+    (group.name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
 
   function openCreateModal() {
     editingGroupId = null;
-    currentGroup = { name: '', description: '' }; 
+    currentGroup = { name: '' };
     showModal = true;
   }
 
   function openEditModal(group: Group) {
     editingGroupId = group.id;
-    currentGroup = { ...group }; 
+    currentGroup = { name: group.name };
     showModal = true;
   }
 
   async function handleDelete(groupId: string) {
-    if (!confirm('Вы уверены, что хотите удалить эту группу? Все связанные контакты останутся, но будут откреплены от этой группы.')) return;
+    if (!confirm('Вы уверены, что хотите удалить эту группу?')) return;
     isLoading = true; 
     try {
       await GroupService.deleteGroup(groupId);
@@ -95,7 +90,7 @@
   <h2>Управление группами</h2>
 
   <div class="controls">
-    <input type="text" placeholder="Поиск по названию или описанию..." bind:value={searchTerm} disabled={isLoading}>
+    <input type="text" placeholder="Поиск по названию..." bind:value={searchTerm} disabled={isLoading}>
     <button on:click={openCreateModal} disabled={isLoading}>Добавить группу</button>
   </div>
 
@@ -109,8 +104,7 @@
       {#each filteredGroups as group (group.id)}
         <li class="group-item">
           <h3>{group.name}</h3>
-          {#if group.description}<p>{group.description}</p>{/if}
-          <!-- TODO: Отображение участников группы, если это необходимо -->
+          <!-- Отображение описания удалено -->
           <div class="actions">
             <button class="edit" on:click={() => openEditModal(group)}>Редактировать</button>
             <button class="delete" on:click={() => handleDelete(group.id)}>Удалить</button>
@@ -132,10 +126,7 @@
         <label for="groupName">Название группы*:</label>
         <input type="text" id="groupName" bind:value={currentGroup.name} required disabled={isLoading}>
       </div>
-      <div class="form-group">
-        <label for="groupDescription">Описание:</label>
-        <textarea id="groupDescription" bind:value={currentGroup.description} disabled={isLoading}></textarea>
-      </div>
+      <!-- Поле для описания удалено -->
       {#if error && showModal}
         <p class="error-message">{error}</p>
       {/if}
@@ -190,15 +181,11 @@
     margin-bottom: 8px;
     color: #007bff; 
   }
-  .group-item p {
-    font-size: 0.9rem;
-    color: #555;
-    flex-grow: 1; /* Чтобы описание занимало доступное место */
-  }
+  /* Стиль для <p> с описанием можно удалить, если он был специфичен */
   .actions {
-    margin-top: 15px; /* Отступ для кнопок */
+    margin-top: 15px; 
     padding-top: 10px;
-    border-top: 1px solid #f0f0f0; /* Разделитель */
+    border-top: 1px solid #f0f0f0; 
     display: flex;
     gap: 10px;
     justify-content: flex-end;

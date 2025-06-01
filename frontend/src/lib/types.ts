@@ -31,7 +31,6 @@ export interface ContactPayload { // Данные для создания/обн
 export interface Group {
   id: string;
   name: string;
-  description?: string;
   contacts?: Contact[]; // Группы могут содержать контакты
   // createdAt?: string;
   // updatedAt?: string;
@@ -39,7 +38,7 @@ export interface Group {
 
 export interface GroupPayload { // Данные для создания/обновления группы
   name: string;
-  description?: string;
+  // description?: string; // Удалено по запросу пользователя
 }
 
 // Общий тип для элементов, имеющих ID, полезно для списков

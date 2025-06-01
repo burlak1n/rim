@@ -15,10 +15,12 @@ type Repository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Contact, error)
 	GetByEmail(ctx context.Context, email string) (*domain.Contact, error)
 	GetByPhone(ctx context.Context, phone string) (*domain.Contact, error)
-	// GetAll(ctx context.Context, filters map[string]string, sortBy string, sortOrder string) ([]domain.Contact, error)
-	GetAll(ctx context.Context) ([]domain.Contact, error) // Упрощенная версия для начала
+	GetByEmailUnscoped(ctx context.Context, email string) (*domain.Contact, error)
+	GetByPhoneUnscoped(ctx context.Context, phone string) (*domain.Contact, error)
+	GetAll(ctx context.Context) ([]domain.Contact, error)
 	Update(ctx context.Context, contact *domain.Contact) error
 	Delete(ctx context.Context, id uint) error
+	HardDelete(ctx context.Context, id uint) error
 	AddContactToGroup(ctx context.Context, contact *domain.Contact, group *domain.Group) error
 	RemoveContactFromGroup(ctx context.Context, contact *domain.Contact, group *domain.Group) error
 }
@@ -37,6 +39,8 @@ func NewSQLiteRepository(db *gorm.DB, logger *slog.Logger) Repository {
 }
 
 func (r *sqliteRepository) Create(ctx context.Context, contact *domain.Contact) (*domain.Contact, error) {
+	// Возвращаем к простому созданию. GORM должен сам обработать уникальные индексы.
+	// Проверки на существующие активные email/phone теперь полностью в usecase.
 	if err := r.db.WithContext(ctx).Create(contact).Error; err != nil {
 		r.logger.ErrorContext(ctx, "Error creating contact in DB", slog.Any("error", err), slog.String("contactName", contact.Name))
 		return nil, err
@@ -168,5 +172,45 @@ func (r *sqliteRepository) RemoveContactFromGroup(ctx context.Context, contact *
 		return err
 	}
 	r.logger.InfoContext(ctx, "Successfully removed contact from group in DB", slog.Uint64("contactID", uint64(contact.ID)), slog.Uint64("groupID", uint64(group.ID)))
+	return nil
+}
+
+func (r *sqliteRepository) GetByEmailUnscoped(ctx context.Context, email string) (*domain.Contact, error) {
+	var contact domain.Contact
+	if err := r.db.Unscoped().WithContext(ctx).Where("email = ?", email).First(&contact).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			r.logger.InfoContext(ctx, "Contact not found by email (unscoped) in DB", slog.String("email", email))
+			return nil, err
+		}
+		r.logger.ErrorContext(ctx, "Error getting contact by email (unscoped) from DB", slog.String("email", email), slog.Any("error", err))
+		return nil, err
+	}
+	return &contact, nil
+}
+
+func (r *sqliteRepository) GetByPhoneUnscoped(ctx context.Context, phone string) (*domain.Contact, error) {
+	var contact domain.Contact
+	if err := r.db.Unscoped().WithContext(ctx).Where("phone = ?", phone).First(&contact).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			r.logger.InfoContext(ctx, "Contact not found by phone (unscoped) in DB", slog.String("phone", phone))
+			return nil, err
+		}
+		r.logger.ErrorContext(ctx, "Error getting contact by phone (unscoped) from DB", slog.String("phone", phone), slog.Any("error", err))
+		return nil, err
+	}
+	return &contact, nil
+}
+
+func (r *sqliteRepository) HardDelete(ctx context.Context, id uint) error {
+	result := r.db.Unscoped().WithContext(ctx).Delete(&domain.Contact{}, id)
+	if result.Error != nil {
+		r.logger.ErrorContext(ctx, "Error hard deleting contact from DB", slog.Uint64("contactID", uint64(id)), slog.Any("error", result.Error))
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		r.logger.WarnContext(ctx, "Contact not found for hard deletion in DB", slog.Uint64("contactID", uint64(id)))
+		// Не возвращаем ErrRecordNotFound, т.к. это не всегда ошибка в контексте hard delete (могли уже удалить)
+	}
+	r.logger.InfoContext(ctx, "Successfully hard deleted contact from DB", slog.Uint64("contactID", uint64(id)))
 	return nil
 }

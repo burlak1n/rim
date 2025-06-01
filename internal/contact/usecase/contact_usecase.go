@@ -93,22 +93,53 @@ func (uc *contactUseCase) CreateContact(ctx context.Context, data CreateContactD
 	if data.Email == "" {
 		return nil, ErrContactEmailEmpty
 	}
-	// TODO: Добавить более строгую валидацию формата Email и Phone
 
-	// Проверка уникальности Email
-	existingByEmail, err := uc.contactRepo.GetByEmail(ctx, data.Email)
+	// 1. Проверка и удаление "мягко удаленного" контакта с таким же телефоном
+	deletedContactByPhone, err := uc.contactRepo.GetByPhoneUnscoped(ctx, data.Phone)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		uc.logger.ErrorContext(ctx, "Error checking contact email existence", slog.String("email", data.Email), slog.Any("error", err))
+		uc.logger.ErrorContext(ctx, "Error checking unscoped contact phone existence", slog.String("phone", data.Phone), slog.Any("error", err))
+		return nil, err // Ошибка при доступе к БД
+	}
+	if deletedContactByPhone != nil && deletedContactByPhone.DeletedAt.Valid {
+		uc.logger.InfoContext(ctx, "Found soft-deleted contact by phone, proceeding with hard delete", slog.String("phone", data.Phone), slog.Uint64("contactID", uint64(deletedContactByPhone.ID)))
+		if err := uc.contactRepo.HardDelete(ctx, deletedContactByPhone.ID); err != nil {
+			uc.logger.ErrorContext(ctx, "Error hard deleting contact by phone", slog.Uint64("contactID", uint64(deletedContactByPhone.ID)), slog.Any("error", err))
+			return nil, err // Ошибка при физическом удалении
+		}
+	}
+
+	// 2. Проверка и удаление "мягко удаленного" контакта с таким же email
+	// Проверяем, не был ли этот контакт уже удален на предыдущем шаге (если phone и email совпадали у удаленной записи)
+	deletedContactByEmail, err := uc.contactRepo.GetByEmailUnscoped(ctx, data.Email)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		uc.logger.ErrorContext(ctx, "Error checking unscoped contact email existence", slog.String("email", data.Email), slog.Any("error", err))
+		return nil, err // Ошибка при доступе к БД
+	}
+	if deletedContactByEmail != nil && deletedContactByEmail.DeletedAt.Valid {
+		// Если это тот же контакт, что и найденный по телефону и уже удаленный, ничего не делаем
+		if deletedContactByPhone == nil || deletedContactByEmail.ID != deletedContactByPhone.ID || !deletedContactByPhone.DeletedAt.Valid {
+			uc.logger.InfoContext(ctx, "Found soft-deleted contact by email, proceeding with hard delete", slog.String("email", data.Email), slog.Uint64("contactID", uint64(deletedContactByEmail.ID)))
+			if err := uc.contactRepo.HardDelete(ctx, deletedContactByEmail.ID); err != nil {
+				uc.logger.ErrorContext(ctx, "Error hard deleting contact by email", slog.Uint64("contactID", uint64(deletedContactByEmail.ID)), slog.Any("error", err))
+				return nil, err // Ошибка при физическом удалении
+			}
+		}
+	}
+
+	// 3. Проверка уникальности Email среди АКТИВНЫХ контактов (как и было)
+	existingByEmail, err := uc.contactRepo.GetByEmail(ctx, data.Email) // Эта функция ищет только активные
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		uc.logger.ErrorContext(ctx, "Error checking active contact email existence", slog.String("email", data.Email), slog.Any("error", err))
 		return nil, err
 	}
 	if existingByEmail != nil {
 		return nil, ErrContactEmailExists
 	}
 
-	// Проверка уникальности Phone
-	existingByPhone, err := uc.contactRepo.GetByPhone(ctx, data.Phone)
+	// 4. Проверка уникальности Phone среди АКТИВНЫХ контактов (как и было)
+	existingByPhone, err := uc.contactRepo.GetByPhone(ctx, data.Phone) // Эта функция ищет только активные
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		uc.logger.ErrorContext(ctx, "Error checking contact phone existence", slog.String("phone", data.Phone), slog.Any("error", err))
+		uc.logger.ErrorContext(ctx, "Error checking active contact phone existence", slog.String("phone", data.Phone), slog.Any("error", err))
 		return nil, err
 	}
 	if existingByPhone != nil {
@@ -146,6 +177,17 @@ func (uc *contactUseCase) CreateContact(ctx context.Context, data CreateContactD
 
 	createdContact, err := uc.contactRepo.Create(ctx, contact)
 	if err != nil {
+		// Здесь могут быть ошибки типа UNIQUE constraint failed, если логика выше не отработала
+		// или если есть уникальные ограничения на другие поля, которые мы не проверяли.
+		// Проверим еще раз на всякий случай, чтобы вернуть кастомную ошибку клиенту.
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: contacts.phone") {
+			uc.logger.ErrorContext(ctx, "Final unique constraint failed for phone", slog.String("name", contact.Name), slog.Any("error", err))
+			return nil, ErrContactPhoneExists
+		}
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: contacts.email") {
+			uc.logger.ErrorContext(ctx, "Final unique constraint failed for email", slog.String("name", contact.Name), slog.Any("error", err))
+			return nil, ErrContactEmailExists
+		}
 		uc.logger.ErrorContext(ctx, "Failed to create contact via repository", slog.String("name", contact.Name), slog.Any("error", err))
 		return nil, err
 	}

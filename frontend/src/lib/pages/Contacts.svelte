@@ -1,34 +1,63 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import ContactService from '$lib/services/contactService';
+  import GroupService from '$lib/services/groupService'; // Импортируем GroupService
   import type { Contact, ContactPayload, Group } from '$lib/types';
 
   let contacts: Contact[] = [];
+  let allGroups: Group[] = []; // Для хранения списка всех групп
   let isLoading = true;
   let error: string | null = null;
+  let generalError: string | null = null; // Общая ошибка для страницы
 
   let searchTerm: string = '';
-  let sortBy: keyof Pick<Contact, 'name' | 'email' | 'phone'> = 'name'; // Типизируем sortBy
+  let sortBy: keyof Pick<Contact, 'name' | 'email' | 'phone'> = 'name';
 
-  // Состояние для модального окна/формы создания/редактирования
-  let showModal = false;
-  let currentContact: Partial<ContactPayload> = {}; // Для формы создания/редактирования
-  let editingContactId: string | null = null; // ID редактируемого контакта
+  // Состояние для модального окна создания/редактирования контакта
+  let showContactModal = false;
+  let currentContactForm: Partial<ContactPayload> = {};
+  let editingContactId: string | null = null;
+
+  // Состояние для модального окна управления группами контакта
+  let showManageGroupsModal = false;
+  let contactToManageGroups: Contact | null = null;
+  let selectedGroupIds: Set<string> = new Set(); // ID групп, в которых состоит контакт
+  let isSavingGroups = false;
+  let groupsModalError: string | null = null;
 
   onMount(async () => {
-    await loadContacts();
+    await loadInitialData();
   });
 
-  async function loadContacts() {
+  async function loadInitialData() {
     isLoading = true;
-    error = null;
+    generalError = null;
     try {
-      const fetchedContacts = await ContactService.getAllContacts();
-      contacts = fetchedContacts || []; // Если API вернет null/undefined
+      const [fetchedContacts, fetchedGroups] = await Promise.all([
+        ContactService.getAllContacts(),
+        GroupService.getAllGroups()
+      ]);
+      contacts = fetchedContacts || [];
+      allGroups = fetchedGroups || [];
+    } catch (err: any) {
+      console.error("Failed to load initial data:", err);
+      generalError = err.message || "Не удалось загрузить данные.";
+      contacts = [];
+      allGroups = [];
+    }
+    isLoading = false;
+  }
+
+  async function loadContacts() {
+    // Эта функция может быть объединена с loadInitialData или вызываться отдельно при необходимости
+    isLoading = true;
+    generalError = null;
+    try {
+      contacts = (await ContactService.getAllContacts()) || [];
     } catch (err: any) {
       console.error("Failed to load contacts:", err);
-      error = err.message || "Не удалось загрузить контакты.";
-      contacts = []; // Очищаем список в случае ошибки
+      generalError = err.message || "Не удалось загрузить контакты.";
+      contacts = [];
     }
     isLoading = false;
   }
@@ -39,7 +68,7 @@
         if (typeof value === 'string') {
           return value.toLowerCase().includes(searchTerm.toLowerCase());
         }
-        if (Array.isArray(value)) { // Для поиска по группам, если они есть в контакте
+        if (Array.isArray(value)) {
           return value.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase()));
         }
         return false;
@@ -53,78 +82,118 @@
       return 0;
     });
 
-  function openCreateModal() {
+  function openCreateContactModal() {
     editingContactId = null;
-    currentContact = { name: '', email: '', phone: '' }; // Сброс формы
-    showModal = true;
+    currentContactForm = { name: '', email: '', phone: '' };
+    error = null; // Сброс ошибки формы
+    showContactModal = true;
   }
 
-  function openEditModal(contact: Contact) {
+  function openEditContactModal(contact: Contact) {
     editingContactId = contact.id;
-    currentContact = { ...contact }; // Копируем данные для редактирования
-    showModal = true;
+    currentContactForm = { ...contact }; // Копируем данные для редактирования
+    error = null; // Сброс ошибки формы
+    showContactModal = true;
   }
 
-  async function handleDelete(contactId: string) {
+  async function handleDeleteContact(contactId: string) {
     if (!confirm('Вы уверены, что хотите удалить этот контакт?')) return;
-    isLoading = true; // Можно использовать отдельный флаг загрузки для удаления
+    // isLoading = true; // Можно использовать отдельный флаг загрузки для удаления
     try {
       await ContactService.deleteContact(contactId);
-      await loadContacts(); // Перезагружаем список
+      await loadContacts(); 
     } catch (err: any) {
       console.error("Failed to delete contact:", err);
-      error = err.message || "Не удалось удалить контакт.";
-      // Можно показать ошибку пользователю
+      generalError = err.message || "Не удалось удалить контакт.";
     }
-    isLoading = false;
+    // isLoading = false;
   }
   
-  async function handleFormSubmit() {
-    if (!currentContact.name || !currentContact.email || !currentContact.phone) {
+  async function handleContactFormSubmit() {
+    if (!currentContactForm.name || !currentContactForm.email || !currentContactForm.phone) {
         alert("Имя, Email и Телефон обязательны для заполнения.");
         return;
     }
-    isLoading = true;
+    // isLoading = true;
     error = null;
     try {
       if (editingContactId) {
-        await ContactService.updateContact(editingContactId, currentContact as ContactPayload);
+        await ContactService.updateContact(editingContactId, currentContactForm as ContactPayload);
       } else {
-        await ContactService.createContact(currentContact as ContactPayload);
+        await ContactService.createContact(currentContactForm as ContactPayload);
       }
-      showModal = false;
-      await loadContacts(); // Перезагружаем список
+      showContactModal = false;
+      await loadContacts(); 
     } catch (err: any) {
       console.error("Failed to save contact:", err);
-      error = err.message || "Не удалось сохранить контакт.";
-      // Ошибка останется в модальном окне или можно ее показать глобально
+      error = err.message || "Не удалось сохранить контакт."; // Ошибка для модального окна контакта
     }
-    isLoading = false;
+    // isLoading = false;
   }
 
-  // TODO: Реализовать функции для addContactToGroup / removeContactFromGroup
-  // Это потребует UI для выбора группы, возможно, отдельное модальное окно.
+  // --- Логика для управления группами контакта ---
+  function openManageGroupsModal(contact: Contact) {
+    contactToManageGroups = contact;
+    selectedGroupIds = new Set(contact.groups?.map(g => g.id) || []);
+    groupsModalError = null;
+    showManageGroupsModal = true;
+  }
+
+  async function handleSaveContactGroups() {
+    if (!contactToManageGroups) return;
+
+    isSavingGroups = true;
+    groupsModalError = null;
+    const contactId = contactToManageGroups.id;
+    const initialGroupIds = new Set(contactToManageGroups.groups?.map(g => g.id) || []);
+    
+    try {
+      // Удалить из групп, из которых убрали
+      for (const groupId of initialGroupIds) {
+        if (!selectedGroupIds.has(groupId)) {
+          await ContactService.removeContactFromGroup(contactId, groupId);
+        }
+      }
+      // Добавить в новые группы
+      for (const groupId of selectedGroupIds) {
+        if (!initialGroupIds.has(groupId)) {
+          await ContactService.addContactToGroup(contactId, groupId);
+        }
+      }
+      showManageGroupsModal = false;
+      await loadContacts(); // Перезагрузить контакты для отображения изменений
+    } catch (err: any) {
+      console.error("Failed to update contact groups:", err);
+      groupsModalError = err.message || "Не удалось обновить группы контакта.";
+    }
+    isSavingGroups = false;
+  }
 
 </script>
 
 <div class="contacts-page">
   <h2>Контакты</h2>
   
+  {#if generalError}
+    <p class="error-message global-error">Ошибка: {generalError} <button on:click={loadInitialData}>Попробовать снова</button></p>
+  {/if}
+
   <div class="controls">
-    <input type="text" placeholder="Поиск..." bind:value={searchTerm} disabled={isLoading}>
-    <select bind:value={sortBy} disabled={isLoading}>
+    <input type="text" placeholder="Поиск..." bind:value={searchTerm} disabled={isLoading && contacts.length === 0}>
+    <select bind:value={sortBy} disabled={isLoading && contacts.length === 0}>
       <option value="name">Имя</option>
       <option value="email">Email</option>
       <option value="phone">Телефон</option>
     </select>
-    <button on:click={openCreateModal} disabled={isLoading}>Добавить контакт</button>
+    <button on:click={openCreateContactModal} disabled={isLoading && contacts.length === 0}>Добавить контакт</button>
   </div>
 
   {#if isLoading && contacts.length === 0}
-    <p>Загрузка контактов...</p>
-  {:else if error}
-    <p class="error-message">Ошибка: {error}</p>
-    <button on:click={loadContacts}>Попробовать снова</button>
+    <p>Загрузка данных...</p>
+  {:else if !generalError && filteredContacts.length === 0 && searchTerm}
+     <p>Контакты по вашему запросу не найдены.</p>
+  {:else if !generalError && contacts.length === 0}
+    <p>Список контактов пуст. <button on:click={openCreateContactModal}>Добавить первый контакт?</button></p>
   {:else if filteredContacts.length > 0}
     <ul class="contact-list">
       {#each filteredContacts as contact (contact.id)}
@@ -135,44 +204,47 @@
           {#if contact.transport}<p><strong>Транспорт:</strong> {contact.transport}</p>{/if}
           {#if contact.printer}<p><strong>Принтер:</strong> {contact.printer}</p>{/if}
           {#if contact.allergies}<p><strong>Аллергии:</strong> {contact.allergies}</p>{/if}
-          {#if contact.vk}<p><strong>VK:</strong> <a href={contact.vk} target="_blank">{contact.vk}</a></p>{/if}
+          {#if contact.vk}<p><strong>VK:</strong> <a href={contact.vk} target="_blank" rel="noopener noreferrer">{contact.vk}</a></p>{/if}
           {#if contact.telegram}<p><strong>Telegram:</strong> {contact.telegram}</p>{/if}
           {#if contact.groups && contact.groups.length > 0}
             <p><strong>Группы:</strong> {contact.groups.map(g => g.name).join(', ')}</p>
+          {:else}
+            <p><strong>Группы:</strong> <em>не состоит в группах</em></p>
           {/if}
           <div class="actions">
-            <button class="edit" on:click={() => openEditModal(contact)}>Редактировать</button>
-            <button class="delete" on:click={() => handleDelete(contact.id)}>Удалить</button>
-            <!-- TODO: Кнопки для добавления/удаления из групп -->
+            <button class="edit" on:click={() => openEditContactModal(contact)}>Редактировать</button>
+            <button class="manage-groups" on:click={() => openManageGroupsModal(contact)}>Упр. группами</button>
+            <button class="delete" on:click={() => handleDeleteContact(contact.id)}>Удалить</button>
           </div>
         </li>
       {/each}
     </ul>
   {:else}
-    <p>Контакты не найдены. <button on:click={openCreateModal}>Добавить первый контакт?</button></p>
+    <p>Список контактов пуст или произошла ошибка при фильтрации.</p> <!-- Резервное сообщение -->
   {/if}
 </div>
 
-{#if showModal}
-  <div class="modal-backdrop" on:click={() => showModal = false}></div>
-  <div class="modal">
+<!-- Модальное окно для создания/редактирования контакта -->
+{#if showContactModal}
+  <div class="modal-backdrop" on:click={() => showContactModal = false}></div>
+  <div class="modal contact-modal">
     <h3>{editingContactId ? 'Редактировать контакт' : 'Создать контакт'}</h3>
-    <form on:submit|preventDefault={handleFormSubmit}>
+    <form on:submit|preventDefault={handleContactFormSubmit}>
       <div class="form-group">
         <label for="contactName">Имя*:</label>
-        <input type="text" id="contactName" bind:value={currentContact.name} required disabled={isLoading}>
+        <input type="text" id="contactName" bind:value={currentContactForm.name} required disabled={isLoading}>
       </div>
       <div class="form-group">
         <label for="contactEmail">Email*:</label>
-        <input type="email" id="contactEmail" bind:value={currentContact.email} required disabled={isLoading}>
+        <input type="email" id="contactEmail" bind:value={currentContactForm.email} required disabled={isLoading}>
       </div>
       <div class="form-group">
         <label for="contactPhone">Телефон*:</label>
-        <input type="tel" id="contactPhone" bind:value={currentContact.phone} required disabled={isLoading}>
+        <input type="tel" id="contactPhone" bind:value={currentContactForm.phone} required disabled={isLoading}>
       </div>
       <div class="form-group">
         <label for="contactTransport">Транспорт:</label>
-        <select id="contactTransport" bind:value={currentContact.transport} disabled={isLoading}>
+        <select id="contactTransport" bind:value={currentContactForm.transport} disabled={isLoading}>
           <option value={undefined}>Не указано</option>
           <option value="есть машина">Есть машина</option>
           <option value="есть права">Есть права</option>
@@ -181,7 +253,7 @@
       </div>
       <div class="form-group">
         <label for="contactPrinter">Принтер:</label>
-        <select id="contactPrinter" bind:value={currentContact.printer} disabled={isLoading}>
+        <select id="contactPrinter" bind:value={currentContactForm.printer} disabled={isLoading}>
           <option value={undefined}>Не указано</option>
           <option value="цветной">Цветной</option>
           <option value="обычный">Обычный</option>
@@ -190,24 +262,66 @@
       </div>
       <div class="form-group">
         <label for="contactAllergies">Аллергии:</label>
-        <textarea id="contactAllergies" bind:value={currentContact.allergies} disabled={isLoading}></textarea>
+        <textarea id="contactAllergies" bind:value={currentContactForm.allergies} disabled={isLoading}></textarea>
       </div>
       <div class="form-group">
         <label for="contactVK">VK (ссылка):</label>
-        <input type="url" id="contactVK" bind:value={currentContact.vk} disabled={isLoading}>
+        <input type="url" id="contactVK" bind:value={currentContactForm.vk} disabled={isLoading}>
       </div>
       <div class="form-group">
         <label for="contactTelegram">Telegram (username):</label>
-        <input type="text" id="contactTelegram" bind:value={currentContact.telegram} disabled={isLoading}>
+        <input type="text" id="contactTelegram" bind:value={currentContactForm.telegram} disabled={isLoading}>
       </div>
-      {#if error && showModal} <!-- Показываем ошибку внутри модального окна -->
+      {#if error} <!-- Ошибка формы контакта -->
         <p class="error-message">{error}</p>
       {/if}
       <div class="modal-actions">
         <button type="submit" class="primary" disabled={isLoading}>{#if isLoading}Сохранение...{:else}Сохранить{/if}</button>
-        <button type="button" on:click={() => showModal = false} disabled={isLoading}>Отмена</button>
+        <button type="button" on:click={() => showContactModal = false} disabled={isLoading}>Отмена</button>
       </div>
     </form>
+  </div>
+{/if}
+
+<!-- Модальное окно для управления группами контакта -->
+{#if showManageGroupsModal && contactToManageGroups}
+  <div class="modal-backdrop" on:click={() => showManageGroupsModal = false}></div>
+  <div class="modal groups-modal">
+    <h3>Управление группами для: {contactToManageGroups.name}</h3>
+    {#if allGroups.length === 0}
+      <p>Список групп пуст. Сначала <a href="/groups">создайте группы</a>.</p>
+    {:else}
+      <form on:submit|preventDefault={handleSaveContactGroups}>
+        <div class="groups-checkbox-list">
+          {#each allGroups as group (group.id)}
+            <label>
+              <input 
+                type="checkbox" 
+                value={group.id} 
+                checked={selectedGroupIds.has(group.id)}
+                on:change={() => {
+                  if (selectedGroupIds.has(group.id)) {
+                    selectedGroupIds.delete(group.id);
+                  } else {
+                    selectedGroupIds.add(group.id);
+                  }
+                  selectedGroupIds = selectedGroupIds; // Для реактивности Svelte
+                }}
+                disabled={isSavingGroups}
+              />
+              {group.name}
+            </label>
+          {/each}
+        </div>
+        {#if groupsModalError}
+          <p class="error-message">{groupsModalError}</p>
+        {/if}
+        <div class="modal-actions">
+          <button type="submit" class="primary" disabled={isSavingGroups || allGroups.length === 0}>{#if isSavingGroups}Сохранение...{:else}Сохранить группы{/if}</button>
+          <button type="button" on:click={() => showManageGroupsModal = false} disabled={isSavingGroups}>Отмена</button>
+        </div>
+      </form>
+    {/if}
   </div>
 {/if}
 
@@ -236,7 +350,7 @@
     list-style: none;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); /* Немного увеличил ширину */
     gap: 20px;
   }
   .contact-item {
@@ -258,15 +372,17 @@
     word-break: break-word;
   }
   .actions {
-    margin-top: auto; /* Прижимает кнопки вниз */
-    padding-top: 10px;
+    margin-top: auto; 
+    padding-top: 15px;
+    border-top: 1px solid #f0f0f0;
     display: flex;
-    gap: 10px;
+    gap: 8px; /* Уменьшил gap */
     justify-content: flex-end;
+    flex-wrap: wrap; /* Для переноса кнопок на маленьких экранах */
   }
   .actions button {
-    padding: 6px 12px;
-    font-size: 0.85rem;
+    padding: 6px 10px; /* Немного уменьшил padding */
+    font-size: 0.8rem; /* Уменьшил шрифт */
   }
   .actions button.edit {
     background-color: #1890ff;
@@ -274,6 +390,13 @@
   }
   .actions button.edit:hover {
     background-color: #40a9ff;
+  }
+   .actions button.manage-groups {
+    background-color: #52c41a; /* Зеленый */
+    color: white;
+  }
+  .actions button.manage-groups:hover {
+    background-color: #73d13d;
   }
   .actions button.delete {
     background-color: #ff4d4f;
@@ -283,7 +406,6 @@
     background-color: #ff7875;
   }
 
-  /* Стили для модального окна */
   .modal-backdrop {
     position: fixed;
     top: 0;
@@ -304,9 +426,12 @@
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     z-index: 11;
     width: 90%;
-    max-width: 500px;
+    max-width: 500px; /* Общий для всех модалок */
     max-height: 90vh;
     overflow-y: auto;
+  }
+  .modal.groups-modal { /* Специфичный стиль для модалки групп */
+     max-width: 400px;
   }
   .modal h3 {
     margin-top: 0;
@@ -336,5 +461,28 @@
   .error-message {
     color: red;
     margin-bottom: 10px;
+  }
+  .global-error {
+    border: 1px solid red;
+    padding: 10px;
+    margin-bottom: 15px;
+    background-color: #ffeeee;
+  }
+  .groups-checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 250px; /* Ограничение высоты списка */
+    overflow-y: auto; /* Прокрутка, если групп много */
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .groups-checkbox-list label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
   }
 </style> 
