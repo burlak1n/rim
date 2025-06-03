@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Rubik+Mono+One&display=swap');
 body {
   font-family: "Comfortaa", sans-serif;
+  font-size: 20px;
   margin: 0;
   background-color: #f0f2f5;
   color: #333;
@@ -14,7 +15,7 @@ body {
 }
 
 a {
-  color: #1890ff;
+  color: #ffffff;
   text-decoration: none;
 }
 

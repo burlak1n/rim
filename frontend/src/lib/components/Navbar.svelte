@@ -35,6 +35,7 @@
 
 <nav>
   <div class="nav-container">
+    <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
     <Link to="/" class="logo-link">RIM</Link>
     <ul class="nav-links">
       <!-- Временно показываем всегда -->
@@ -54,7 +55,7 @@
 
 <style>
   nav {
-    background-color: #001529;
+    background-color: #593494;
     padding: 0 20px;
     color: white;
   }
