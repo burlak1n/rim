@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { Router, Route, Link } from "svelte-routing";
   import Home from "$lib/pages/Home.svelte";
   import Login from "$lib/pages/Login.svelte";
@@ -7,12 +8,14 @@
   import Groups from "$lib/pages/Groups.svelte";
   import Profile from "$lib/pages/Profile.svelte";
   import Navbar from "$lib/components/Navbar.svelte";
-  import AuthStore from "$lib/store/authStore";
+  import { authStore } from "$lib/store/authStore";
 
   export let url = ""; // Required by svelte-routing
 
-  // Позже здесь будет логика для проверки состояния аутентификации
-  // и условного рендеринга навигации или редиректа на логин
+  // Инициализируем auth store при загрузке приложения
+  onMount(() => {
+    authStore.init();
+  });
 </script>
 
 <Router {url}>

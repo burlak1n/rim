@@ -2,13 +2,15 @@
   import { onMount } from 'svelte';
   import ContactService from '$lib/services/contactService';
   import GroupService from '$lib/services/groupService'; // Импортируем GroupService
-  import type { Contact, ContactPayload, Group } from '$lib/types';
+  import { authStore } from '$lib/store/authStore';
+  import type { Contact, ContactPayload, Group, ContactBasic } from '$lib/types';
 
-  let contacts: Contact[] = [];
+  let contacts: (Contact | ContactBasic)[] = [];
   let allGroups: Group[] = []; // Для хранения списка всех групп
   let isLoading = true;
   let error: string | null = null;
   let generalError: string | null = null; // Общая ошибка для страницы
+  let isAuthenticated = false;
 
   let searchTerm: string = '';
   let sortBy: keyof Pick<Contact, 'name' | 'email' | 'phone'> = 'name';
@@ -24,6 +26,14 @@
   let selectedGroupIds: Set<string> = new Set(); // ID групп, в которых состоит контакт
   let isSavingGroups = false;
   let groupsModalError: string | null = null;
+
+  // Подписываемся на изменения состояния авторизации
+  $: isAuthenticated = $authStore.isAuthenticated;
+
+  // Функция для проверки, является ли контакт полным
+  function isFullContact(contact: Contact | ContactBasic): contact is Contact {
+    return 'email' in contact;
+  }
 
   onMount(async () => {
     await loadInitialData();
@@ -63,8 +73,13 @@
   }
 
   $: filteredContacts = contacts
-    .filter(contact => 
-      Object.values(contact).some(value => {
+    .filter(contact => {
+      // Для базовых контактов ищем только по имени
+      if (!isFullContact(contact)) {
+        return contact.name.toLowerCase().includes(searchTerm.toLowerCase());
+      }
+      // Для полных контактов ищем по всем полям
+      return Object.values(contact).some(value => {
         if (typeof value === 'string') {
           return value.toLowerCase().includes(searchTerm.toLowerCase());
         }
@@ -72,9 +87,18 @@
           return value.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase()));
         }
         return false;
-      })
-    )
+      });
+    })
     .sort((a, b) => {
+      // Сортировка только по имени для базовых контактов
+      if (sortBy === 'name' || !isFullContact(a) || !isFullContact(b)) {
+        const valA = a.name;
+        const valB = b.name;
+        if (valA < valB) return -1;
+        if (valA > valB) return 1;
+        return 0;
+      }
+      // Полная сортировка для авторизованных пользователей
       const valA = a[sortBy];
       const valB = b[sortBy];
       if (valA < valB) return -1;
@@ -180,12 +204,16 @@
 
   <div class="controls">
     <input type="text" placeholder="Поиск..." bind:value={searchTerm} disabled={isLoading && contacts.length === 0}>
-    <select bind:value={sortBy} disabled={isLoading && contacts.length === 0}>
-      <option value="name">Имя</option>
-      <option value="email">Email</option>
-      <option value="phone">Телефон</option>
-    </select>
-    <button on:click={openCreateContactModal} disabled={isLoading && contacts.length === 0}>Добавить контакт</button>
+    {#if isAuthenticated}
+      <select bind:value={sortBy} disabled={isLoading && contacts.length === 0}>
+        <option value="name">Имя</option>
+        <option value="email">Email</option>
+        <option value="phone">Телефон</option>
+      </select>
+      <button on:click={openCreateContactModal} disabled={isLoading && contacts.length === 0}>Добавить контакт</button>
+    {:else}
+      <p class="auth-notice">Для управления контактами необходимо <a href="/login">войти в систему</a></p>
+    {/if}
   </div>
 
   {#if isLoading && contacts.length === 0}
@@ -199,23 +227,31 @@
       {#each filteredContacts as contact (contact.id)}
         <li class="contact-item">
           <h3>{contact.name}</h3>
-          <p><strong>Email:</strong> {contact.email}</p>
-          <p><strong>Телефон:</strong> {contact.phone}</p>
-          {#if contact.transport}<p><strong>Транспорт:</strong> {contact.transport}</p>{/if}
-          {#if contact.printer}<p><strong>Принтер:</strong> {contact.printer}</p>{/if}
-          {#if contact.allergies}<p><strong>Аллергии:</strong> {contact.allergies}</p>{/if}
-          {#if contact.vk}<p><strong>VK:</strong> <a href={contact.vk} target="_blank" rel="noopener noreferrer">{contact.vk}</a></p>{/if}
-          {#if contact.telegram}<p><strong>Telegram:</strong> {contact.telegram}</p>{/if}
-          {#if contact.groups && contact.groups.length > 0}
-            <p><strong>Группы:</strong> {contact.groups.map(g => g.name).join(', ')}</p>
+          
+          {#if isFullContact(contact)}
+            <!-- Полная информация для авторизованных пользователей -->
+            <p><strong>Email:</strong> {contact.email}</p>
+            <p><strong>Телефон:</strong> {contact.phone}</p>
+            {#if contact.transport}<p><strong>Транспорт:</strong> {contact.transport}</p>{/if}
+            {#if contact.printer}<p><strong>Принтер:</strong> {contact.printer}</p>{/if}
+            {#if contact.allergies}<p><strong>Аллергии:</strong> {contact.allergies}</p>{/if}
+            {#if contact.vk}<p><strong>VK:</strong> <a href={contact.vk} target="_blank" rel="noopener noreferrer">{contact.vk}</a></p>{/if}
+            {#if contact.telegram}<p><strong>Telegram:</strong> {contact.telegram}</p>{/if}
+            {#if contact.groups && contact.groups.length > 0}
+              <p><strong>Группы:</strong> {contact.groups.map(g => g.name).join(', ')}</p>
+            {:else}
+              <p><strong>Группы:</strong> <em>не состоит в группах</em></p>
+            {/if}
+            
+            <div class="actions">
+              <button class="edit" on:click={() => openEditContactModal(contact)}>Редактировать</button>
+              <button class="manage-groups" on:click={() => openManageGroupsModal(contact)}>Упр. группами</button>
+              <button class="delete" on:click={() => handleDeleteContact(contact.id)}>Удалить</button>
+            </div>
           {:else}
-            <p><strong>Группы:</strong> <em>не состоит в группах</em></p>
+            <!-- Ограниченная информация для неавторизованных пользователей -->
+            <p class="limited-info">Для просмотра полной информации необходимо <a href="/login">войти в систему</a></p>
           {/if}
-          <div class="actions">
-            <button class="edit" on:click={() => openEditContactModal(contact)}>Редактировать</button>
-            <button class="manage-groups" on:click={() => openManageGroupsModal(contact)}>Упр. группами</button>
-            <button class="delete" on:click={() => handleDeleteContact(contact.id)}>Удалить</button>
-          </div>
         </li>
       {/each}
     </ul>
@@ -371,6 +407,28 @@
     font-size: 0.9rem;
     word-break: break-word;
   }
+  .limited-info {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    margin: 20px 0;
+  }
+  
+  .auth-notice {
+    color: #666;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  
+  .auth-notice a {
+    color: #1890ff;
+    text-decoration: none;
+  }
+  
+  .auth-notice a:hover {
+    text-decoration: underline;
+  }
+  
   .actions {
     margin-top: auto; 
     padding-top: 15px;

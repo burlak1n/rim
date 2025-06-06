@@ -16,6 +16,7 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 	SQLitePath    string
+	BotToken      string
 }
 
 // LoadConfig загружает конфигурацию из переменных окружения.
@@ -32,6 +33,7 @@ func LoadConfig() (*Config, error) {
 	redisPassword := getEnv("REDIS_PASSWORD", "")
 	redisDBStr := getEnv("REDIS_DB", "0")
 	sqlitePath := getEnv("SQLITE_PATH", "./rim.db")
+	botToken := getEnv("BOT_TOKEN", "")
 
 	redisDB, err := strconv.Atoi(redisDBStr)
 	if err != nil {
@@ -45,6 +47,7 @@ func LoadConfig() (*Config, error) {
 		RedisPassword: redisPassword,
 		RedisDB:       redisDB,
 		SQLitePath:    sqlitePath,
+		BotToken:      botToken,
 	}, nil
 }
 

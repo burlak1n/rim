@@ -1,62 +1,10 @@
 <script lang="ts">
-  import { navigate } from "svelte-routing";
-  import AuthStore from "$lib/store/authStore";
-  import AuthService from "$lib/services/authService";
-
-  let email = '';
-  let password = '';
-  let error = '';
-  let isLoading = false; // Для отображения состояния загрузки
-
-  async function handleSubmit() {
-    error = '';
-    isLoading = true;
-    if (!email || !password) {
-      error = 'Пожалуйста, введите email и пароль.';
-      isLoading = false;
-      return;
-    }
-    try {
-      const response = await AuthService.login(email, password);
-      if (response && response.user && response.token) {
-        AuthStore.login(response.user, response.token);
-        navigate('/', { replace: true });
-      } else {
-        // Этот случай маловероятен, если handleResponse в сервисе работает корректно
-        // и всегда выбрасывает ошибку или возвращает данные.
-        error = 'Получен некорректный ответ от сервера.';
-        AuthStore.setError(error);
-      }
-    } catch (err: any) {
-      console.error('Login failed:', err);
-      error = err.message || 'Ошибка входа. Пожалуйста, проверьте ваши данные.';
-      AuthStore.setError(error);
-    }
-    isLoading = false;
-  }
+  import TelegramAuth from "$lib/components/TelegramAuth.svelte";
 </script>
 
 <div class="login-container">
   <h2>Вход в систему</h2>
-  <form on:submit|preventDefault={handleSubmit}>
-    <div class="form-group">
-      <label for="email">Email:</label>
-      <input type="email" id="email" bind:value={email} required disabled={isLoading}>
-    </div>
-    <div class="form-group">
-      <label for="password">Пароль:</label>
-      <input type="password" id="password" bind:value={password} required disabled={isLoading}>
-    </div>
-    {#if error}
-      <p class="error-message">{error}</p>
-    {/if}
-    <button type="submit" disabled={isLoading}>
-      {#if isLoading}Загрузка...{:else}Войти{/if}
-    </button>
-  </form>
-  <p class="register-link">
-    Нет аккаунта? <a href="/register">Зарегистрироваться</a>
-  </p>
+  <TelegramAuth />
 </div>
 
 <style>

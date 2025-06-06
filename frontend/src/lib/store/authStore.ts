@@ -1,88 +1,92 @@
 import { writable } from 'svelte/store';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  // Можно добавить другие поля пользователя, которые приходят от бэкенда
-  vk?: string;
-  telegram?: string;
-  transport?: string;
-  printer?: string;
-  allergies?: string;
-  // roles?: string[]; // Если роли будут использоваться на фронте
-}
+import type { User } from '../types.js';
+import AuthService from '../services/authService.js';
 
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  error: string | null;
+  loading: boolean;
 }
 
-const initialAuthState: AuthState = {
+const initialState: AuthState = {
   isAuthenticated: false,
   user: null,
-  token: null, // В реальном приложении токен может быть загружен из localStorage
-  error: null,
+  token: null,
+  loading: false,
 };
 
 function createAuthStore() {
-  const { subscribe, set, update } = writable<AuthState>(initialAuthState);
+  const { subscribe, set, update } = writable<AuthState>(initialState);
 
   return {
     subscribe,
-    login: (userData: User, authToken: string) => {
-      update(state => ({
-        ...state,
-        isAuthenticated: true,
-        user: userData,
-        token: authToken,
-        error: null,
-      }));
-      // localStorage.setItem('authToken', authToken); // Сохраняем токен
-      // localStorage.setItem('user', JSON.stringify(userData)); // Сохраняем пользователя
+    
+    // Инициализация при загрузке приложения
+    init: async () => {
+      const token = AuthService.getToken();
+      if (token) {
+        try {
+          update(state => ({ ...state, loading: true }));
+          const user = await AuthService.getMe(token);
+          set({
+            isAuthenticated: true,
+            user,
+            token,
+            loading: false,
+          });
+        } catch (error) {
+          console.error('Failed to get user info:', error);
+          AuthService.removeToken();
+          set(initialState);
+        }
+      }
     },
-    logout: () => {
-      update(state => ({
-        ...state,
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        error: null,
-      }));
-      // localStorage.removeItem('authToken');
-      // localStorage.removeItem('user');
+
+    // Авторизация через Telegram
+    loginWithTelegram: async (authData: any) => {
+      try {
+        update(state => ({ ...state, loading: true }));
+        const sessionResponse = await AuthService.authenticateWithTelegram(authData);
+        AuthService.saveToken(sessionResponse.session_token);
+        
+        const user = await AuthService.getMe(sessionResponse.session_token);
+        
+        set({
+          isAuthenticated: true,
+          user,
+          token: sessionResponse.session_token,
+          loading: false,
+        });
+        
+        return true;
+      } catch (error) {
+        console.error('Login failed:', error);
+        set({ ...initialState, loading: false });
+        throw error;
+      }
     },
-    setError: (errorMessage: string) => {
-      update(state => ({
-        ...state,
-        error: errorMessage,
-      }));
+
+    // Выход из системы
+    logout: async () => {
+      const token = AuthService.getToken();
+      if (token) {
+        try {
+          await AuthService.logout(token);
+        } catch (error) {
+          console.error('Logout error:', error);
+        }
+      }
+      AuthService.removeToken();
+      set(initialState);
     },
-    // Можно добавить функцию для инициализации store из localStorage при загрузке приложения
-    // init: () => {
-    //   const token = localStorage.getItem('authToken');
-    //   const userString = localStorage.getItem('user');
-    //   if (token && userString) {
-    //     try {
-    //       const user = JSON.parse(userString);
-    //       set({ isAuthenticated: true, user, token, error: null });
-    //     } catch (e) {
-    //       console.error("Failed to parse user from localStorage", e);
-    //       // Очистить localStorage, если данные повреждены
-    //       localStorage.removeItem('authToken');
-    //       localStorage.removeItem('user');
-    //       set(initialAuthState);
-    //     }
-    //   } else {
-    //     set(initialAuthState);
-    //   }
-    // }
+
+    // Очистка состояния
+    clear: () => {
+      AuthService.removeToken();
+      set(initialState);
+    }
   };
 }
 
-const AuthStore = createAuthStore();
-// AuthStore.init(); // Вызывать при инициализации приложения, например в App.svelte или main.ts
-
-export default AuthStore; 
+export const authStore = createAuthStore(); 

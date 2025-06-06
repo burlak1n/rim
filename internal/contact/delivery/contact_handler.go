@@ -117,10 +117,11 @@ func (h *Handler) GetContactByID(c *fiber.Ctx) error {
 
 // GetAllContacts обрабатывает запрос на получение всех контактов.
 // @Summary Получить все контакты
-// @Description Возвращает список всех контактов, включая группы каждого из них.
+// @Description Возвращает список всех контактов. Для неавторизованных пользователей возвращает только имена.
 // @Tags contacts
 // @Produce json
-// @Success 200 {array} ContactResponse "Список контактов"
+// @Success 200 {array} ContactResponse "Список контактов для авторизованных пользователей"
+// @Success 200 {array} ContactBasicResponse "Список контактов для неавторизованных пользователей"
 // @Failure 500 {object} groupDelivery.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /contacts [get]
 func (h *Handler) GetAllContacts(c *fiber.Ctx) error {
@@ -130,11 +131,33 @@ func (h *Handler) GetAllContacts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(groupDelivery.ErrorResponse{Message: "Internal server error"})
 	}
 
-	resp := make([]ContactResponse, len(contacts))
-	for i, ct := range contacts {
-		resp[i] = toContactResponse(&ct)
+	// Проверяем авторизацию пользователя
+	isAuthenticated := c.Locals("isAuthenticated")
+	isAuth := false
+	if isAuthenticated != nil {
+		if isAuthBool, ok := isAuthenticated.(bool); ok {
+			isAuth = isAuthBool
+		}
 	}
-	return c.Status(fiber.StatusOK).JSON(resp)
+
+	if isAuth {
+		// Возвращаем полную информацию для авторизованных пользователей
+		resp := make([]ContactResponse, len(contacts))
+		for i, ct := range contacts {
+			resp[i] = toContactResponse(&ct)
+		}
+		return c.Status(fiber.StatusOK).JSON(resp)
+	} else {
+		// Возвращаем только имена для неавторизованных пользователей
+		resp := make([]ContactBasicResponse, len(contacts))
+		for i, ct := range contacts {
+			resp[i] = ContactBasicResponse{
+				ID:   ct.ID,
+				Name: ct.Name,
+			}
+		}
+		return c.Status(fiber.StatusOK).JSON(resp)
+	}
 }
 
 // UpdateContact обрабатывает запрос на обновление контакта.

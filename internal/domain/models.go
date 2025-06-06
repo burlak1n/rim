@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
@@ -13,13 +15,35 @@ type Contact struct {
 	Email      string `gorm:"not null;uniqueIndex"` // Email должен быть уникальным
 
 	// Необязательные поля
-	Transport string // "car", "license", "none"
-	Printer   string // "color", "plain", "none"
-	Allergies string
-	VK        string
-	Telegram  string
+	Transport  string // "car", "license", "none"
+	Printer    string // "color", "plain", "none"
+	Allergies  string
+	VK         string
+	Telegram   string
+	TelegramID int64 `gorm:"uniqueIndex"` // ID пользователя в Telegram
 
 	Groups []*Group `gorm:"many2many:contact_groups;"` // Связь многие-ко-многим с группами
+}
+
+// User представляет авторизованного пользователя системы
+type User struct {
+	ID         uint      `json:"id" gorm:"primaryKey"`
+	TelegramID int64     `json:"telegram_id" gorm:"uniqueIndex;not null"`
+	ContactID  *uint     `json:"contact_id" gorm:"index"` // Связь с контактом
+	IsActive   bool      `json:"is_active" gorm:"default:true"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+
+	// Связь с контактом
+	Contact *Contact `json:"contact,omitempty" gorm:"foreignKey:ContactID"`
+}
+
+// UserSession представляет сессию пользователя в Redis
+type UserSession struct {
+	SessionToken string    `json:"session_token"`
+	UserID       uint      `json:"user_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiredAt    time.Time `json:"expired_at"`
 }
 
 // Group представляет модель группы контактов.
