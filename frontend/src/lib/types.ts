@@ -41,6 +41,38 @@ export interface GroupPayload { // Данные для создания/обно
   // description?: string; // Удалено по запросу пользователя
 }
 
+// Базовая информация о контакте для неавторизованных пользователей
+export interface ContactBasic {
+  id: string;
+  name: string;
+}
+
+// Данные авторизации через Telegram
+export interface TelegramAuthData {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+}
+
+// Ответ с токеном сессии
+export interface SessionResponse {
+  session_token: string;
+  expires_at: string;
+}
+
+// Информация о пользователе
+export interface User {
+  id: number;
+  telegram_id: number;
+  is_active: boolean;
+  contact?: Contact;
+  created_at: string;
+}
+
 // Общий тип для элементов, имеющих ID, полезно для списков
 export interface Identifiable {
   id: string | number;

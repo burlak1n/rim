@@ -21,13 +21,13 @@ func NewSQLiteConnection(cfg *config.Config, logger *slog.Logger) (*gorm.DB, err
 
 	logger.Info("Successfully connected to SQLite", slog.String("path", cfg.SQLitePath))
 
-	// Выполняем автомиграцию для моделей Contact и Group
-	err = db.AutoMigrate(&domain.Contact{}, &domain.Group{})
+	// Выполняем автомиграцию для моделей Contact, Group и User
+	err = db.AutoMigrate(&domain.Contact{}, &domain.Group{}, &domain.User{})
 	if err != nil {
 		logger.Error("Failed to migrate database schema", slog.Any("error", err))
 		return nil, err
 	}
-	logger.Info("Database schema migrated successfully for Contact and Group models")
+	logger.Info("Database schema migrated successfully for Contact, Group and User models")
 
 	return db, nil
 }

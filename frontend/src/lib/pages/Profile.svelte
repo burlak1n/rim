@@ -1,25 +1,9 @@
 <script lang="ts">
-  import AuthStore from "$lib/store/authStore";
+  import { authStore } from "$lib/store/authStore";
 
-  // Предполагаем, что данные пользователя хранятся в AuthStore
-  let currentUser: { id: string; name: string; email: string; vk?: string; telegram?: string; transport?: string; printer?: string; allergies?: string; } | null = null;
-
-  AuthStore.subscribe(auth => {
-    if (auth.isAuthenticated && auth.user) {
-      // Загружаем полные данные пользователя, если это необходимо, или используем то, что есть в store
-      currentUser = {
-        ...auth.user,
-        // Здесь можно добавить заглушки для необязательных полей из ТЗ
-        vk: auth.user.vk || 'Не указан',
-        telegram: auth.user.telegram || 'Не указан',
-        transport: auth.user.transport || 'Не указано',
-        printer: auth.user.printer || 'Не указан',
-        allergies: auth.user.allergies || 'Нет данных'
-      };
-    } else {
-      currentUser = null;
-    }
-  });
+  // Предполагаем, что данные пользователя хранятся в authStore
+  $: currentUser = $authStore.user;
+  $: isAuthenticated = $authStore.isAuthenticated;
 
   // TODO: Добавить форму для редактирования профиля
   // TODO: Обработка сохранения изменений
@@ -27,22 +11,50 @@
 
 <div class="profile-page">
   <h2>Мой профиль</h2>
-  {#if currentUser}
+  {#if isAuthenticated && currentUser}
     <div class="profile-card">
       <div class="profile-info">
-        <h3>{currentUser.name}</h3>
-        <p><strong>Email:</strong> {currentUser.email}</p>
-        <p><strong>VK:</strong> {currentUser.vk}</p>
-        <p><strong>Telegram:</strong> {currentUser.telegram}</p>
-        <p><strong>Транспорт:</strong> {currentUser.transport}</p>
-        <p><strong>Принтер:</strong> {currentUser.printer}</p>
-        <p><strong>Аллергии:</strong> {currentUser.allergies}</p>
+        <h3>Профиль пользователя</h3>
+        <p><strong>Telegram ID:</strong> {currentUser.telegram_id}</p>
+        <p><strong>Статус:</strong> {currentUser.is_active ? 'Активен' : 'Неактивен'}</p>
+        <p><strong>Дата регистрации:</strong> {new Date(currentUser.created_at).toLocaleDateString('ru-RU')}</p>
+        
+        {#if currentUser.contact}
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+          <h4>Информация о контакте</h4>
+          <p><strong>Имя:</strong> {currentUser.contact.name}</p>
+          <p><strong>Email:</strong> {currentUser.contact.email}</p>
+          <p><strong>Телефон:</strong> {currentUser.contact.phone}</p>
+          {#if currentUser.contact.transport}
+            <p><strong>Транспорт:</strong> {currentUser.contact.transport}</p>
+          {/if}
+          {#if currentUser.contact.printer}
+            <p><strong>Принтер:</strong> {currentUser.contact.printer}</p>
+          {/if}
+          {#if currentUser.contact.allergies}
+            <p><strong>Аллергии:</strong> {currentUser.contact.allergies}</p>
+          {/if}
+          {#if currentUser.contact.vk}
+            <p><strong>VK:</strong> <a href={currentUser.contact.vk} target="_blank" rel="noopener noreferrer">{currentUser.contact.vk}</a></p>
+          {/if}
+          {#if currentUser.contact.telegram}
+            <p><strong>Telegram:</strong> {currentUser.contact.telegram}</p>
+          {/if}
+        {:else}
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-style: italic;">Контакт не привязан к аккаунту</p>
+        {/if}
+        
+        <button on:click={() => authStore.logout()} style="margin-top: 20px; background-color: #ff4d4f; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+          Выйти из системы
+        </button>
       </div>
-      <!-- <button on:click={() => console.log('Редактировать профиль')}>Редактировать</button> -->
-       <p style="margin-top: 20px; color: #888;"><i>(Редактирование профиля будет доступно позже)</i></p>
     </div>
   {:else}
-    <p>Информация о пользователе не загружена. Пожалуйста, войдите в систему.</p>
+    <div class="auth-required">
+      <p>Для просмотра профиля необходимо войти в систему.</p>
+      <a href="/login" style="color: #1890ff; text-decoration: none; font-weight: 500;">Войти через Telegram</a>
+    </div>
   {/if}
 </div>
 

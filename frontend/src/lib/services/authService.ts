@@ -1,7 +1,7 @@
-// Временная заглушка для AuthService
-// В будущем здесь будет логика взаимодействия с API бэкенда для аутентификации
+import type { TelegramAuthData, SessionResponse, User } from '../types.js';
+import { config } from '../config.js';
 
-const API_BASE_URL = '/api/auth'; // Базовый URL для эндпоинтов аутентификации
+const API_BASE_URL = `${config.apiBaseUrl}/api/v1/auth`; // Базовый URL для эндпоинтов аутентификации
 
 // Вспомогательная функция для обработки ответов fetch
 async function handleResponse(response: Response) {
@@ -23,45 +23,58 @@ async function handleResponse(response: Response) {
 }
 
 const AuthService = {
-  login: async (email, password) => {
-    console.log('AuthService.login called with', email);
-    const response = await fetch(`${API_BASE_URL}/login`, {
+  // Авторизация через Telegram
+  authenticateWithTelegram: async (authData: TelegramAuthData): Promise<SessionResponse> => {
+    console.log('AuthService.authenticateWithTelegram called', authData);
+    const response = await fetch(`${API_BASE_URL}/telegram`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(authData),
     });
     return handleResponse(response);
   },
 
-  register: async (userData) => {
-    console.log('AuthService.register called with', userData);
-    const response = await fetch(`${API_BASE_URL}/register`, {
-      method: 'POST',
+  // Получить информацию о текущем пользователе
+  getMe: async (token: string): Promise<User> => {
+    console.log('AuthService.getMe called');
+    const response = await fetch(`${API_BASE_URL}/me`, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify(userData),
     });
     return handleResponse(response);
   },
 
-  logout: async (token: string | null) => { // Logout может потребовать токен
+  // Выход из системы
+  logout: async (token: string): Promise<void> => {
     console.log('AuthService.logout called');
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
     const response = await fetch(`${API_BASE_URL}/logout`, {
       method: 'POST',
-      headers: headers,
-      // Тело запроса для logout обычно не требуется, но это зависит от API
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     });
     return handleResponse(response);
+  },
+
+  // Сохранить токен в localStorage
+  saveToken: (token: string): void => {
+    localStorage.setItem('session_token', token);
+  },
+
+  // Получить токен из localStorage
+  getToken: (): string | null => {
+    return localStorage.getItem('session_token');
+  },
+
+  // Удалить токен из localStorage
+  removeToken: (): void => {
+    localStorage.removeItem('session_token');
   }
 };
 
