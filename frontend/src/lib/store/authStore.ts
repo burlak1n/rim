@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   loading: boolean;
+  debugMode: boolean; // Отладочный режим для разрешения редактирования всем
 }
 
 const initialState: AuthState = {
@@ -14,6 +15,7 @@ const initialState: AuthState = {
   user: null,
   token: null,
   loading: false,
+  debugMode: false,
 };
 
 function createAuthStore() {
@@ -24,6 +26,16 @@ function createAuthStore() {
     
     // Инициализация при загрузке приложения
     init: async () => {
+      let debugModeFromServer = false;
+      
+      // Загружаем состояние отладочного режима с сервера
+      try {
+        const debugResponse = await AuthService.getDebugMode();
+        debugModeFromServer = debugResponse.enabled;
+      } catch (error) {
+        console.warn('Failed to load debug mode from server:', error);
+      }
+
       const token = AuthService.getToken();
       if (token) {
         try {
@@ -34,12 +46,21 @@ function createAuthStore() {
             user,
             token,
             loading: false,
+            debugMode: debugModeFromServer,
           });
         } catch (error) {
           console.error('Failed to get user info:', error);
           AuthService.removeToken();
-          set(initialState);
+          set({
+            ...initialState,
+            debugMode: debugModeFromServer,
+          });
         }
+      } else {
+        set({
+          ...initialState,
+          debugMode: debugModeFromServer,
+        });
       }
     },
 
@@ -57,6 +78,7 @@ function createAuthStore() {
           user,
           token: sessionResponse.session_token,
           loading: false,
+          debugMode: false,
         });
         
         return true;
@@ -79,6 +101,51 @@ function createAuthStore() {
       }
       AuthService.removeToken();
       set(initialState);
+    },
+
+    // Обновление данных пользователя
+    loadUser: async () => {
+      const token = AuthService.getToken();
+      if (token) {
+        try {
+          const user = await AuthService.getMe(token);
+          update(state => ({ ...state, user }));
+        } catch (error) {
+          console.error('Failed to reload user info:', error);
+          throw error;
+        }
+      }
+    },
+
+    // Переключение отладочного режима
+    toggleDebugMode: async () => {
+      const token = AuthService.getToken();
+      if (!token) {
+        console.error('No token available for debug mode toggle');
+        return;
+      }
+
+      try {
+        // Сначала получаем текущее состояние для переключения
+        let currentDebugMode = false;
+        update(state => {
+          currentDebugMode = state.debugMode;
+          return state;
+        });
+
+        const newDebugMode = !currentDebugMode;
+        
+        // Сохраняем на сервере
+        await AuthService.setDebugMode(token, newDebugMode);
+        
+        // Обновляем локальное состояние
+        update(state => ({ ...state, debugMode: newDebugMode }));
+        
+        console.log('Debug mode updated:', newDebugMode);
+      } catch (error) {
+        console.error('Failed to toggle debug mode:', error);
+        // Можно показать уведомление об ошибке
+      }
     },
 
     // Очистка состояния

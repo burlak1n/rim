@@ -18,7 +18,7 @@
   }
   h2 {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 0px;
     color: #333;
   }
   .form-group {

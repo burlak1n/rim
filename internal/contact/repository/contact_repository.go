@@ -92,7 +92,8 @@ func (r *sqliteRepository) GetByPhone(ctx context.Context, phone string) (*domai
 
 func (r *sqliteRepository) GetByTelegramID(ctx context.Context, telegramID int64) (*domain.Contact, error) {
 	var contact domain.Contact
-	if err := r.db.WithContext(ctx).Where("telegram_id = ?", telegramID).First(&contact).Error; err != nil {
+	// Загружаем связанные группы при получении контакта по telegram_id
+	if err := r.db.WithContext(ctx).Preload("Groups").Where("telegram_id = ?", telegramID).First(&contact).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			r.logger.InfoContext(ctx, "Contact not found by telegram ID in DB", slog.Int64("telegram_id", telegramID))
 			return nil, err
@@ -129,7 +130,7 @@ func (r *sqliteRepository) Update(ctx context.Context, contact *domain.Contact) 
 
 	// Обновляем основные поля контакта
 	// Используем Select, чтобы обновить только указанные поля, исключая ассоциации из этого шага
-	if err := tx.Select("Name", "Phone", "Email", "Transport", "Printer", "Allergies", "VK", "Telegram", "UpdatedAt").Updates(contact).Error; err != nil {
+	if err := tx.Select("Name", "Phone", "Email", "Transport", "Printer", "Allergies", "VK", "Telegram", "TelegramID", "UpdatedAt").Updates(contact).Error; err != nil {
 		tx.Rollback()
 		r.logger.ErrorContext(ctx, "Error updating contact fields in DB", slog.Uint64("contactID", uint64(contact.ID)), slog.Any("error", err))
 		return err

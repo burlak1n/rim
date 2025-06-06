@@ -29,6 +29,9 @@
 
   // Подписываемся на изменения состояния авторизации
   $: isAuthenticated = $authStore.isAuthenticated;
+  $: isAdmin = $authStore.user?.is_admin || false;
+  $: debugMode = $authStore.debugMode;
+  $: canEdit = isAdmin || debugMode; // Можно редактировать если админ или включен отладочный режим
 
   // Функция для проверки, является ли контакт полным
   function isFullContact(contact: Contact | ContactBasic): contact is Contact {
@@ -196,7 +199,7 @@
 </script>
 
 <div class="contacts-page">
-  <h2>Контакты</h2>
+  <h2>Контакты {#if debugMode}<span class="debug-indicator">(Отладочный режим)</span>{/if}</h2>
   
   {#if generalError}
     <p class="error-message global-error">Ошибка: {generalError} <button on:click={loadInitialData}>Попробовать снова</button></p>
@@ -210,7 +213,9 @@
         <option value="email">Email</option>
         <option value="phone">Телефон</option>
       </select>
-      <button on:click={openCreateContactModal} disabled={isLoading && contacts.length === 0}>Добавить контакт</button>
+      {#if canEdit}
+        <button on:click={openCreateContactModal} disabled={isLoading && contacts.length === 0}>Добавить контакт</button>
+      {/if}
     {:else}
       <p class="auth-notice">Для управления контактами необходимо <a href="/login">войти в систему</a></p>
     {/if}
@@ -221,7 +226,7 @@
   {:else if !generalError && filteredContacts.length === 0 && searchTerm}
      <p>Контакты по вашему запросу не найдены.</p>
   {:else if !generalError && contacts.length === 0}
-    <p>Список контактов пуст. <button on:click={openCreateContactModal}>Добавить первый контакт?</button></p>
+    <p>Список контактов пуст. {#if canEdit}<button on:click={openCreateContactModal}>Добавить первый контакт?</button>{/if}</p>
   {:else if filteredContacts.length > 0}
     <ul class="contact-list">
       {#each filteredContacts as contact (contact.id)}
@@ -237,20 +242,23 @@
             {#if contact.allergies}<p><strong>Аллергии:</strong> {contact.allergies}</p>{/if}
             {#if contact.vk}<p><strong>VK:</strong> <a href={contact.vk} target="_blank" rel="noopener noreferrer">{contact.vk}</a></p>{/if}
             {#if contact.telegram}<p><strong>Telegram:</strong> {contact.telegram}</p>{/if}
+            {#if contact.telegram_id}<p><strong>Telegram ID:</strong> {contact.telegram_id}</p>{/if}
             {#if contact.groups && contact.groups.length > 0}
               <p><strong>Группы:</strong> {contact.groups.map(g => g.name).join(', ')}</p>
             {:else}
               <p><strong>Группы:</strong> <em>не состоит в группах</em></p>
             {/if}
             
-            <div class="actions">
-              <button class="edit" on:click={() => openEditContactModal(contact)}>Редактировать</button>
-              <button class="manage-groups" on:click={() => openManageGroupsModal(contact)}>Упр. группами</button>
-              <button class="delete" on:click={() => handleDeleteContact(contact.id)}>Удалить</button>
-            </div>
+            {#if canEdit}
+              <div class="actions">
+                <button class="edit" on:click={() => openEditContactModal(contact)}>Редактировать</button>
+                <button class="manage-groups" on:click={() => openManageGroupsModal(contact)}>Упр. группами</button>
+                <button class="delete" on:click={() => handleDeleteContact(contact.id)}>Удалить</button>
+              </div>
+            {/if}
           {:else}
             <!-- Ограниченная информация для неавторизованных пользователей -->
-            <p class="limited-info">Для просмотра полной информации необходимо <a href="/login">войти в систему</a></p>
+            <p class="limited-info">Для просмотра полной информации необходимо <a href="/login" style="color: #1890ff; text-decoration: none; font-weight: 500;">войти в систему</a></p>
           {/if}
         </li>
       {/each}
@@ -307,6 +315,10 @@
       <div class="form-group">
         <label for="contactTelegram">Telegram (username):</label>
         <input type="text" id="contactTelegram" bind:value={currentContactForm.telegram} disabled={isLoading}>
+      </div>
+      <div class="form-group">
+        <label for="contactTelegramId">Telegram ID:</label>
+        <input type="number" id="contactTelegramId" bind:value={currentContactForm.telegram_id} disabled={isLoading} placeholder="Например: 123456789">
       </div>
       {#if error} <!-- Ошибка формы контакта -->
         <p class="error-message">{error}</p>
@@ -367,6 +379,12 @@
   }
   h2 {
     margin-bottom: 20px;
+  }
+
+  .debug-indicator {
+    color: #d46b08;
+    font-size: 0.8em;
+    font-weight: normal;
   }
   .controls {
     display: flex;

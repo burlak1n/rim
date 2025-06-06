@@ -1,9 +1,27 @@
 // frontend/src/lib/services/contactService.ts
 import type { Contact, ContactPayload, ContactBasic } from "$lib/types";
 import AuthService from "./authService.js";
-import { config } from "../config.js";
 
-const API_BASE_URL = `${config.apiBaseUrl}/api/v1/contacts`;
+const API_BASE_URL = 'http://localhost:3000/api/v1/contacts';
+
+// Получить CSRF токен (аналогично authService)
+async function getCSRFToken(): Promise<string | null> {
+  try {
+    const response = await fetch(`http://localhost:3000/api/v1/auth/csrf-token`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.csrf_token;
+    }
+  } catch (error) {
+    console.warn('Failed to get CSRF token:', error);
+  }
+  
+  return null;
+}
 
 // Вспомогательная функция для обработки ответов fetch (аналогична той, что в authService)
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -23,15 +41,26 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-// Функция для получения заголовков с токеном авторизации
-function getAuthHeaders(): HeadersInit {
-  const headers: HeadersInit = {
+// Функция для получения заголовков с CSRF токеном
+async function getSecureHeaders(includeCSRF: boolean = true): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+  
+  // Поддержка обратной совместимости с localStorage токенами
   const token = AuthService.getToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  
+  // Добавляем CSRF токен для изменяющих операций
+  if (includeCSRF) {
+    const csrfToken = await getCSRFToken();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  
   return headers;
 }
 
@@ -39,7 +68,8 @@ const ContactService = {
   createContact: async (contactData: ContactPayload): Promise<Contact> => {
     const response = await fetch(API_BASE_URL, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(),
+      credentials: 'include',
       body: JSON.stringify(contactData),
     });
     return handleResponse<Contact>(response);
@@ -48,7 +78,8 @@ const ContactService = {
   getAllContacts: async (): Promise<Contact[] | ContactBasic[]> => {
     const response = await fetch(API_BASE_URL, {
       method: 'GET',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(false), // GET не требует CSRF
+      credentials: 'include',
     });
     return handleResponse<Contact[] | ContactBasic[]>(response);
   },
@@ -56,7 +87,8 @@ const ContactService = {
   getContactById: async (id: string): Promise<Contact> => {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
       method: 'GET',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(false), // GET не требует CSRF
+      credentials: 'include',
     });
     return handleResponse<Contact>(response);
   },
@@ -64,32 +96,36 @@ const ContactService = {
   updateContact: async (id: string, contactData: Partial<ContactPayload>): Promise<Contact> => {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(),
+      credentials: 'include',
       body: JSON.stringify(contactData),
     });
     return handleResponse<Contact>(response);
   },
 
-  deleteContact: async (id: string): Promise<null> => { // Обычно DELETE не возвращает тело
+  deleteContact: async (id: string): Promise<null> => {
     const response = await fetch(`${API_BASE_URL}/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(),
+      credentials: 'include',
     });
     return handleResponse<null>(response);
   },
 
-  addContactToGroup: async (contactId: string, groupId: string): Promise<any> => { // Тип ответа зависит от API
+  addContactToGroup: async (contactId: string, groupId: string): Promise<any> => {
     const response = await fetch(`${API_BASE_URL}/${contactId}/groups/${groupId}`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(),
+      credentials: 'include',
     });
     return handleResponse<any>(response);
   },
 
-  removeContactFromGroup: async (contactId: string, groupId: string): Promise<any> => { // Тип ответа зависит от API
+  removeContactFromGroup: async (contactId: string, groupId: string): Promise<any> => {
     const response = await fetch(`${API_BASE_URL}/${contactId}/groups/${groupId}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
+      headers: await getSecureHeaders(),
+      credentials: 'include',
     });
     return handleResponse<any>(response);
   },
