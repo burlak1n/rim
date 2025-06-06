@@ -10,6 +10,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	authDelivery "rim/internal/auth/delivery"
+	authRepo "rim/internal/auth/repository"
+	authUseCase "rim/internal/auth/usecase"
+
 	contactDelivery "rim/internal/contact/delivery"
 	contactRepo "rim/internal/contact/repository"
 	contactUseCase "rim/internal/contact/usecase"
@@ -71,6 +75,11 @@ func main() {
 	cntUseCase := contactUseCase.NewContactUseCase(cntRepo, grpRepo, log)
 	cntHandler := contactDelivery.NewHandler(cntUseCase, log)
 
+	// Инициализация зависимостей для модуля Auth
+	authRepository := authRepo.NewAuthRepository(sqliteDB, redisClient, log)
+	authUseCaseInstance := authUseCase.NewAuthUseCase(authRepository, cntRepo, log)
+	authHandler := authDelivery.NewHandler(authUseCaseInstance, cfg.BotToken, log)
+
 	// Группа маршрутов API v1
 	api := app.Group("/api")
 	v1 := api.Group("/v1")
@@ -85,14 +94,25 @@ func main() {
 
 	// Маршруты для Contact
 	contactRoutes := v1.Group("/contacts")
-	contactRoutes.Post("/", cntHandler.CreateContact)
-	contactRoutes.Get("/", cntHandler.GetAllContacts)
-	contactRoutes.Get("/:id", cntHandler.GetContactByID)
-	contactRoutes.Put("/:id", cntHandler.UpdateContact)
-	contactRoutes.Delete("/:id", cntHandler.DeleteContact)
+	// Применяем middleware для проверки авторизации (но не требуем её)
+	contactRoutes.Use(authHandler.AuthMiddleware())
+
+	contactRoutes.Get("/", cntHandler.GetAllContacts) // Доступно без авторизации (ограниченные данные)
+
+	// Защищенные роуты (требуют авторизации)
+	contactRoutes.Post("/", authHandler.RequireAuth(), cntHandler.CreateContact)
+	contactRoutes.Get("/:id", authHandler.RequireAuth(), cntHandler.GetContactByID)
+	contactRoutes.Put("/:id", authHandler.RequireAuth(), cntHandler.UpdateContact)
+	contactRoutes.Delete("/:id", authHandler.RequireAuth(), cntHandler.DeleteContact)
 	// Маршруты для управления связями контактов и групп
-	contactRoutes.Post("/:contact_id/groups/:group_id", cntHandler.AddContactToGroup)        // Добавить контакт в группу
-	contactRoutes.Delete("/:contact_id/groups/:group_id", cntHandler.RemoveContactFromGroup) // Удалить контакт из группы
+	contactRoutes.Post("/:contact_id/groups/:group_id", authHandler.RequireAuth(), cntHandler.AddContactToGroup)        // Добавить контакт в группу
+	contactRoutes.Delete("/:contact_id/groups/:group_id", authHandler.RequireAuth(), cntHandler.RemoveContactFromGroup) // Удалить контакт из группы
+
+	// Маршруты для Auth
+	authRoutes := v1.Group("/auth")
+	authRoutes.Post("/telegram", authHandler.AuthWithTelegram)
+	authRoutes.Get("/me", authHandler.GetMe)
+	authRoutes.Post("/logout", authHandler.Logout)
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		log.Info("Received request for /", slog.String("ip", c.IP()))

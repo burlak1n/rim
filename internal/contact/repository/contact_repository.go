@@ -15,6 +15,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id uint) (*domain.Contact, error)
 	GetByEmail(ctx context.Context, email string) (*domain.Contact, error)
 	GetByPhone(ctx context.Context, phone string) (*domain.Contact, error)
+	GetByTelegramID(ctx context.Context, telegramID int64) (*domain.Contact, error)
 	GetByEmailUnscoped(ctx context.Context, email string) (*domain.Contact, error)
 	GetByPhoneUnscoped(ctx context.Context, phone string) (*domain.Contact, error)
 	GetAll(ctx context.Context) ([]domain.Contact, error)
@@ -84,6 +85,19 @@ func (r *sqliteRepository) GetByPhone(ctx context.Context, phone string) (*domai
 			return nil, err
 		}
 		r.logger.ErrorContext(ctx, "Error getting contact by phone from DB", slog.String("phone", phone), slog.Any("error", err))
+		return nil, err
+	}
+	return &contact, nil
+}
+
+func (r *sqliteRepository) GetByTelegramID(ctx context.Context, telegramID int64) (*domain.Contact, error) {
+	var contact domain.Contact
+	if err := r.db.WithContext(ctx).Where("telegram_id = ?", telegramID).First(&contact).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			r.logger.InfoContext(ctx, "Contact not found by telegram ID in DB", slog.Int64("telegram_id", telegramID))
+			return nil, err
+		}
+		r.logger.ErrorContext(ctx, "Error getting contact by telegram ID from DB", slog.Int64("telegram_id", telegramID), slog.Any("error", err))
 		return nil, err
 	}
 	return &contact, nil

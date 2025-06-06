@@ -1,8 +1,9 @@
 // frontend/src/lib/services/contactService.ts
-// import AuthStore from "$lib/store/authStore"; // Временно не используется для getAuthHeaders
-import type { Contact, ContactPayload, Group } from "$lib/types";
+import type { Contact, ContactPayload, ContactBasic } from "$lib/types";
+import AuthService from "./authService.js";
+import { config } from "../config.js";
 
-const API_BASE_URL = 'http://localhost:3000/api/v1/contacts';
+const API_BASE_URL = `${config.apiBaseUrl}/api/v1/contacts`;
 
 // Вспомогательная функция для обработки ответов fetch (аналогична той, что в authService)
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -22,20 +23,15 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-// Функция для получения токена из AuthStore
+// Функция для получения заголовков с токеном авторизации
 function getAuthHeaders(): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
-  // ВРЕМЕННО УБРАНА ЛОГИКА АВТОРИЗАЦИИ
-  // let currentToken: string | null = null;
-  // const unsubscribe = AuthStore.subscribe(value => {
-  //   currentToken = value.token;
-  // });
-  // unsubscribe(); 
-  // if (currentToken) {
-  //   headers['Authorization'] = `Bearer ${currentToken}`;
-  // }
+  const token = AuthService.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   return headers;
 }
 
@@ -49,12 +45,12 @@ const ContactService = {
     return handleResponse<Contact>(response);
   },
 
-  getAllContacts: async (): Promise<Contact[]> => {
+  getAllContacts: async (): Promise<Contact[] | ContactBasic[]> => {
     const response = await fetch(API_BASE_URL, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
-    return handleResponse<Contact[]>(response);
+    return handleResponse<Contact[] | ContactBasic[]>(response);
   },
 
   getContactById: async (id: string): Promise<Contact> => {

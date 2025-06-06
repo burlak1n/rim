@@ -1,36 +1,25 @@
 <script lang="ts">
   import { Link, navigate } from "svelte-routing";
-  // import AuthStore from "$lib/store/authStore"; // Временно не используем
-  // import AuthService from "$lib/services/authService"; // Временно не используем
-  // import { tick } from 'svelte'; 
+  import { authStore } from "$lib/store/authStore";
+  import { onMount } from 'svelte';
 
-  // let isAuthenticated: boolean; // Временно не используем
-  // let currentToken: string | null = null; // Временно не используем
+  // Реактивные переменные для отслеживания состояния аутентификации
+  $: authState = $authStore;
+  $: isAuthenticated = authState.isAuthenticated;
+  $: currentUser = authState.user;
 
-  // AuthStore.subscribe(value => { // Временно не используем
-  //   isAuthenticated = value.isAuthenticated;
-  //   currentToken = value.token;
-  // });
+  onMount(() => {
+    authStore.init();
+  });
 
-  // async function handleLogout() { // Временно не используем
-  //   if (!currentToken) {
-  //     AuthStore.logout();
-  //     await tick();
-  //     navigate("/login", { replace: true });
-  //     return;
-  //   }
-  //   try {
-  //     await AuthService.logout(currentToken);
-  //     console.log("Logout successful on server");
-  //   } catch (err: any) {
-  //     console.error("Logout failed on server:", err.message);
-  //     AuthStore.setError(err.message || 'Ошибка при выходе на сервере.');
-  //   } finally {
-  //     AuthStore.logout(); 
-  //     await tick(); 
-  //     navigate("/login", { replace: true });
-  //   }
-  // }
+  async function handleLogout() {
+    try {
+      await authStore.logout();
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  }
 </script>
 
 <nav>
@@ -38,17 +27,15 @@
     <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
     <Link to="/" class="logo-link">РИМ</Link>
     <ul class="nav-links">
-      <!-- Временно показываем всегда -->
       <li><Link to="/contacts">Контакты</Link></li>
       <li><Link to="/groups">Группы</Link></li>
       
-      <!-- {#if isAuthenticated} Временно скрыто
+      {#if isAuthenticated}
         <li><Link to="/profile">Профиль</Link></li>
         <li><button on:click={handleLogout}>Выйти</button></li>
       {:else}
         <li><Link to="/login">Войти</Link></li>
-        <li><Link to="/register">Регистрация</Link></li>
-      {/if} -->
+      {/if}
     </ul>
   </div>
 </nav>

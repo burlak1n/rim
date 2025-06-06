@@ -48,6 +48,12 @@ type ContactResponse struct {
 	UpdatedAt time.Time                     `json:"updated_at"`
 }
 
+// ContactBasicResponse определяет ограниченную структуру для неавторизованных пользователей.
+type ContactBasicResponse struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+}
+
 // AddRemoveContactGroupRequest используется для запросов на добавление/удаление контакта из группы.
 // Пока не используется, так как ID группы берется из URL.
 // type AddRemoveContactGroupRequest struct {
