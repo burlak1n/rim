@@ -36,7 +36,7 @@
 <nav>
   <div class="nav-container">
     <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
-    <Link to="/" class="logo-link">RIM</Link>
+    <Link to="/" class="logo-link">РИМ</Link>
     <ul class="nav-links">
       <!-- Временно показываем всегда -->
       <li><Link to="/contacts">Контакты</Link></li>
