@@ -34,6 +34,6 @@
 <style>
   /* Стили для App.svelte, если нужны */
   .container {
-    padding-top: 20px; /* Отступ от навбара */
+    padding-top: 0px; /* Отступ от навбара */
   }
 </style>
