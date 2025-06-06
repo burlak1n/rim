@@ -30,6 +30,7 @@ func (h *Handler) AuthMiddleware() fiber.Handler {
 
 		// Сохраняем информацию о пользователе в контексте
 		c.Locals("user", user)
+		c.Locals("user_id", user.ID)
 		c.Locals("isAuthenticated", true)
 		return c.Next()
 	}
@@ -65,6 +66,7 @@ func (h *Handler) RequireAuth() fiber.Handler {
 
 		// Сохраняем информацию о пользователе в контексте
 		c.Locals("user", user)
+		c.Locals("user_id", user.ID)
 		c.Locals("isAuthenticated", true)
 		return c.Next()
 	}

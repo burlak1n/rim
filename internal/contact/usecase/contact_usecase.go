@@ -29,28 +29,30 @@ var (
 
 // CreateContactData определяет данные для создания нового контакта.
 type CreateContactData struct {
-	Name      string
-	Phone     string
-	Email     string
-	Transport string
-	Printer   string
-	Allergies string
-	VK        string
-	Telegram  string
-	GroupIDs  []uint // ID групп, к которым нужно добавить контакт
+	Name       string
+	Phone      string
+	Email      string
+	Transport  string
+	Printer    string
+	Allergies  string
+	VK         string
+	Telegram   string
+	TelegramID *int64 // ID пользователя в Telegram
+	GroupIDs   []uint // ID групп, к которым нужно добавить контакт
 }
 
 // UpdateContactData определяет данные для обновления существующего контакта.
 type UpdateContactData struct {
-	Name      *string // Указатели, чтобы различать пустые значения и отсутствующие в запросе
-	Phone     *string
-	Email     *string
-	Transport *string
-	Printer   *string
-	Allergies *string
-	VK        *string
-	Telegram  *string
-	GroupIDs  *[]uint // Список ID групп для полной замены существующих связей
+	Name       *string // Указатели, чтобы различать пустые значения и отсутствующие в запросе
+	Phone      *string
+	Email      *string
+	Transport  *string
+	Printer    *string
+	Allergies  *string
+	VK         *string
+	Telegram   *string
+	TelegramID *int64  // ID пользователя в Telegram
+	GroupIDs   *[]uint // Список ID групп для полной замены существующих связей
 }
 
 // UseCase определяет интерфейс для бизнес-логики управления контактами.
@@ -155,6 +157,11 @@ func (uc *contactUseCase) CreateContact(ctx context.Context, data CreateContactD
 		Allergies: data.Allergies,
 		VK:        data.VK,
 		Telegram:  data.Telegram,
+	}
+
+	// Устанавливаем TelegramID если передан
+	if data.TelegramID != nil {
+		contact.TelegramID = *data.TelegramID
 	}
 
 	// Проверка и подготовка групп
@@ -298,6 +305,10 @@ func (uc *contactUseCase) UpdateContact(ctx context.Context, id uint, data Updat
 	}
 	if data.Telegram != nil && contactToUpdate.Telegram != *data.Telegram {
 		contactToUpdate.Telegram = *data.Telegram
+		changed = true
+	}
+	if data.TelegramID != nil && contactToUpdate.TelegramID != *data.TelegramID {
+		contactToUpdate.TelegramID = *data.TelegramID
 		changed = true
 	}
 

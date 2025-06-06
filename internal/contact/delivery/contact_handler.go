@@ -9,25 +9,63 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
+	authUseCase "rim/internal/auth/usecase"
 	contactUseCase "rim/internal/contact/usecase"
 	"rim/internal/domain"
-	groupDelivery "rim/internal/group/delivery" // Для ErrorResponse и GroupResponse
+	groupDelivery "rim/internal/group/delivery"
 	groupUseCase "rim/internal/group/usecase"
 )
 
 // Handler отвечает за обработку HTTP-запросов, связанных с контактами.
 type Handler struct {
 	contactUseCase contactUseCase.UseCase
+	authUseCase    authUseCase.UseCase
 	logger         *slog.Logger
 	validate       *validator.Validate
 }
 
 // NewHandler создает новый экземпляр Handler для контактов.
-func NewHandler(cu contactUseCase.UseCase, logger *slog.Logger) *Handler {
+func NewHandler(cu contactUseCase.UseCase, au authUseCase.UseCase, logger *slog.Logger) *Handler {
 	return &Handler{
 		contactUseCase: cu,
+		authUseCase:    au,
 		logger:         logger,
 		validate:       validator.New(),
+	}
+}
+
+// RequireAdmin middleware для проверки прав администратора
+func (h *Handler) RequireAdmin() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Получаем пользователя из контекста (должен быть установлен AuthMiddleware)
+		userID, ok := c.Locals("user_id").(uint)
+		if !ok {
+			h.logger.ErrorContext(c.Context(), "User ID not found in context", slog.Any("user_id_raw", c.Locals("user_id")))
+			return c.Status(fiber.StatusUnauthorized).JSON(groupDelivery.ErrorResponse{
+				Message: "Unauthorized",
+			})
+		}
+
+		h.logger.InfoContext(c.Context(), "Checking admin rights", slog.Uint64("user_id", uint64(userID)))
+
+		// Проверяем права администратора
+		isAdmin, err := h.authUseCase.IsUserAdmin(c.Context(), userID)
+		if err != nil {
+			h.logger.ErrorContext(c.Context(), "Failed to check admin status", slog.Uint64("user_id", uint64(userID)), slog.Any("error", err))
+			return c.Status(fiber.StatusInternalServerError).JSON(groupDelivery.ErrorResponse{
+				Message: "Internal server error",
+			})
+		}
+
+		h.logger.InfoContext(c.Context(), "Admin check result", slog.Uint64("user_id", uint64(userID)), slog.Bool("is_admin", isAdmin))
+
+		if !isAdmin {
+			return c.Status(fiber.StatusForbidden).JSON(groupDelivery.ErrorResponse{
+				Message: "Admin rights required",
+			})
+		}
+
+		return c.Next()
 	}
 }
 
@@ -57,15 +95,16 @@ func (h *Handler) CreateContact(c *fiber.Ctx) error {
 	}
 
 	ucData := contactUseCase.CreateContactData{
-		Name:      req.Name,
-		Phone:     req.Phone,
-		Email:     req.Email,
-		Transport: req.Transport,
-		Printer:   req.Printer,
-		Allergies: req.Allergies,
-		VK:        req.VK,
-		Telegram:  req.Telegram,
-		GroupIDs:  req.GroupIDs,
+		Name:       req.Name,
+		Phone:      req.Phone,
+		Email:      req.Email,
+		Transport:  req.Transport,
+		Printer:    req.Printer,
+		Allergies:  req.Allergies,
+		VK:         req.VK,
+		Telegram:   req.Telegram,
+		TelegramID: req.TelegramID,
+		GroupIDs:   req.GroupIDs,
 	}
 
 	contact, err := h.contactUseCase.CreateContact(c.Context(), ucData)
@@ -191,15 +230,16 @@ func (h *Handler) UpdateContact(c *fiber.Ctx) error {
 	}
 
 	ucData := contactUseCase.UpdateContactData{
-		Name:      req.Name,
-		Phone:     req.Phone,
-		Email:     req.Email,
-		Transport: req.Transport,
-		Printer:   req.Printer,
-		Allergies: req.Allergies,
-		VK:        req.VK,
-		Telegram:  req.Telegram,
-		GroupIDs:  req.GroupIDs,
+		Name:       req.Name,
+		Phone:      req.Phone,
+		Email:      req.Email,
+		Transport:  req.Transport,
+		Printer:    req.Printer,
+		Allergies:  req.Allergies,
+		VK:         req.VK,
+		Telegram:   req.Telegram,
+		TelegramID: req.TelegramID,
+		GroupIDs:   req.GroupIDs,
 	}
 
 	updatedContact, err := h.contactUseCase.UpdateContact(c.Context(), uint(contactID), ucData)
@@ -342,17 +382,18 @@ func toContactResponse(contact *domain.Contact) ContactResponse {
 		}
 	}
 	return ContactResponse{
-		ID:        contact.ID,
-		Name:      contact.Name,
-		Phone:     contact.Phone,
-		Email:     contact.Email,
-		Transport: contact.Transport,
-		Printer:   contact.Printer,
-		Allergies: contact.Allergies,
-		VK:        contact.VK,
-		Telegram:  contact.Telegram,
-		Groups:    grRes,
-		CreatedAt: contact.CreatedAt,
-		UpdatedAt: contact.UpdatedAt,
+		ID:         contact.ID,
+		Name:       contact.Name,
+		Phone:      contact.Phone,
+		Email:      contact.Email,
+		Transport:  contact.Transport,
+		Printer:    contact.Printer,
+		Allergies:  contact.Allergies,
+		VK:         contact.VK,
+		Telegram:   contact.Telegram,
+		TelegramID: contact.TelegramID,
+		Groups:     grRes,
+		CreatedAt:  contact.CreatedAt,
+		UpdatedAt:  contact.UpdatedAt,
 	}
 }

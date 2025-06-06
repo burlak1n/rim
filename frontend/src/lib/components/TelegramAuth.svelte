@@ -62,8 +62,6 @@
 </script>
 
 <div class="telegram-auth">
-  <h3>Войти через Telegram</h3>
-  
   {#if error}
     <div class="error">
       {error}

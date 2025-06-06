@@ -11,12 +11,13 @@ import (
 // Config хранит все конфигурационные параметры приложения.
 // Значения читаются из переменных окружения или .env файла.
 type Config struct {
-	AppPort       string
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
-	SQLitePath    string
-	BotToken      string
+	AppPort        string
+	RedisAddr      string
+	RedisPassword  string
+	RedisDB        int
+	SQLitePath     string
+	BotToken       string
+	ForceDebugMode bool
 }
 
 // LoadConfig загружает конфигурацию из переменных окружения.
@@ -33,7 +34,8 @@ func LoadConfig() (*Config, error) {
 	redisPassword := getEnv("REDIS_PASSWORD", "")
 	redisDBStr := getEnv("REDIS_DB", "0")
 	sqlitePath := getEnv("SQLITE_PATH", "./rim.db")
-	botToken := getEnv("BOT_TOKEN", "")
+	botToken := getEnv("BOT_TOKEN", "7190707372:AAHGNCZr8dhT9kJ40rBa1wdLa1cHqANGXJA")
+	forceDebugModeStr := getEnv("DEBUG_MODE", "false")
 
 	redisDB, err := strconv.Atoi(redisDBStr)
 	if err != nil {
@@ -41,13 +43,20 @@ func LoadConfig() (*Config, error) {
 		redisDB = 0 // Используем значение по умолчанию в случае ошибки
 	}
 
+	forceDebugMode, err := strconv.ParseBool(forceDebugModeStr)
+	if err != nil {
+		log.Printf("Invalid DEBUG_MODE value: %s. Using default false. Error: %v", forceDebugModeStr, err)
+		forceDebugMode = false
+	}
+
 	return &Config{
-		AppPort:       appPort,
-		RedisAddr:     redisAddr,
-		RedisPassword: redisPassword,
-		RedisDB:       redisDB,
-		SQLitePath:    sqlitePath,
-		BotToken:      botToken,
+		AppPort:        appPort,
+		RedisAddr:      redisAddr,
+		RedisPassword:  redisPassword,
+		RedisDB:        redisDB,
+		SQLitePath:     sqlitePath,
+		BotToken:       botToken,
+		ForceDebugMode: forceDebugMode,
 	}, nil
 }
 

@@ -11,6 +11,7 @@ export interface Contact {
   allergies?: string;
   vk?: string;
   telegram?: string;
+  telegram_id?: number; // ID пользователя в Telegram
   groups?: Group[]; // Контакты могут принадлежать к группам
   // createdAt?: string; // Даты создания/обновления, если они есть в API
   // updatedAt?: string;
@@ -25,6 +26,7 @@ export interface ContactPayload { // Данные для создания/обн
   allergies?: string;
   vk?: string;
   telegram?: string;
+  telegram_id?: number; // ID пользователя в Telegram
   // groupIds?: string[]; // Если при обновлении контакта можно менять группы
 }
 
@@ -69,6 +71,7 @@ export interface User {
   id: number;
   telegram_id: number;
   is_active: boolean;
+  is_admin: boolean;
   contact?: Contact;
   created_at: string;
 }

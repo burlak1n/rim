@@ -26,17 +26,11 @@
   <div class="nav-container">
     <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
     <Link to="/" class="logo-link">РИМ</Link>
-    <ul class="nav-links">
-      <li><Link to="/contacts">Контакты</Link></li>
-      <li><Link to="/groups">Группы</Link></li>
-      
-      {#if isAuthenticated}
-        <li><Link to="/profile">Профиль</Link></li>
-        <li><button on:click={handleLogout}>Выйти</button></li>
-      {:else}
-        <li><Link to="/login">Войти</Link></li>
-      {/if}
-    </ul>
+    <nav class="flex gap-4 items-center">
+      <Link to="/contacts" class="hover:text-blue-600 transition-colors">Контакты</Link>
+      <Link to="/groups" class="hover:text-blue-600 transition-colors">Группы</Link>
+      <Link to="/profile" class="hover:text-blue-600 transition-colors">Профиль</Link>
+    </nav>
   </div>
 </nav>
 
@@ -44,15 +38,14 @@
   nav {
     background-color: #593494;
     padding: 0 20px;
-    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
   .nav-container {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     max-width: 1200px;
     margin: 0 auto;
-    height: 64px;
   }
   .logo-link {
     font-size: 1.5rem;
@@ -61,28 +54,41 @@
     text-decoration: none;
   }
   .nav-links {
-    list-style: none;
     display: flex;
+    list-style: none;
     margin: 0;
     padding: 0;
+    gap: 20px;
   }
   .nav-links li {
-    margin-left: 20px;
+    display: flex;
+    align-items: center;
   }
-  .nav-links a,
-  .nav-links button {
+  .nav-links :global(a) {
     color: white;
     text-decoration: none;
+    padding: 15px 10px;
+    transition: background-color 0.3s;
+  }
+  .nav-links :global(a:hover) {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 4px;
+  }
+  
+  /* Стилизация кнопки выйти под навигационные ссылки */
+  .logout-button {
     background: none;
     border: none;
-    font-size: 1rem;
+    color: white;
+    text-decoration: none;
+    padding: 15px 10px;
+    transition: background-color 0.3s;
     cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 4px;
-    transition: background-color 0.2s ease-in-out;
+    font-size: inherit;
+    font-family: inherit;
   }
-  .nav-links a:hover,
-  .nav-links button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+  .logout-button:hover {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 4px;
   }
 </style> 
