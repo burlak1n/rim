@@ -24,7 +24,9 @@
 
 <nav>
   <div class="nav-container">
-    <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
+    <a href="https://ingroupctc.ru/">
+      <img style="margin:20px;" src="src/pictures/logo.png" width="100" height=auto alt="Логотип" class="logo" />
+    </a>
     <Link to="/" class="logo-link">РИМ</Link>
     <ul class="nav-links">
       <li><Link to="/contacts">Контакты</Link></li>
