@@ -1,5 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Rubik+Mono+One&display=swap');
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Comfortaa", sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -15,7 +16,7 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #ffffff;
   text-decoration: inherit;
 }
 a:hover {
